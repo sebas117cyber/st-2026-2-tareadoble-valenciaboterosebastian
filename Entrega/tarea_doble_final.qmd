@@ -1,0 +1,313 @@
+---
+title: "Trabajo 1"
+subtitle: "Series de Tiempo — Pregrado en Estadística, UNAL Medellín"
+author: "Sebastian Valencia Botero "
+date: today
+format:
+  pdf:
+    number-sections: true
+    toc: true
+    fig-width: 6
+    fig-height: 4
+    geometry:
+      - a4paper
+      - margin=1.5cm
+      - landscape
+    include-in-header:
+      text: |
+        \usepackage{tabularx}
+        \usepackage{xcolor}
+        \usepackage{array}
+        \usepackage{graphicx}
+editor: visual
+---
+
+```{r}
+
+library(forecast)
+library(ggplot2)
+library(patchwork)
+library(tseries)
+
+```
+
+
+```{r}
+
+source("Funciones.R")
+
+```
+
+
+# simulacion de series
+
+```{r}
+# semilla = set.seed(2025)
+
+serie_ARIMA1 <- simular_serie(tipo = "ARIMA", orden = c(2, 1, 2), n = 180,
+                               phi = c(0.12, 0.56), theta = c(-0.2, 0.5))
+
+
+ARIMA2 <-  simular_serie(tipo = "ARIMA", orden = c(1,1,1), n = 250,
+                          phi = 0.12, theta = 0.5)
+
+st_ARMA <- simular_serie(tipo = "ARMA", orden = c(1, 1), n = 200, phi =0.81,
+                         theta = -0.56)
+
+st_ARI <- simular_serie(tipo = "ARI", orden = c(2, 1), n = 200,
+                        phi = c(0.5, -0.1))
+
+```
+
+# Serie ARIMA(2,1,2)
+
+## Exploracion
+
+```{r}
+
+gArima1 <- autoplot(serie_ARIMA1) +
+  geom_line(color = "steelblue", linewidth = 0.75) +
+  labs(title = "Serie Original: ARIMA(2,1,2)", x = "Tiempo", y = "Unidades") +
+  theme_minimal()
+
+gArima1
+
+```
+
+
+```{r}
+
+ggAcf(serie_ARIMA1, lag.max = 24) +
+  labs(title = "ACF Serie original ARIMA(2,1,2)") +
+  theme_minimal()
+
+
+```
+
+
+```{r}
+
+ggPacf(serie_ARIMA1, lag.max = 24) + 
+  labs(title = "PACF Serie original ARIMA(2,1,2)") +
+  theme_minimal()
+
+```
+
+
+
+
+## ajuste
+
+
+```{r}
+
+ARIMA1_Aml <- ajustar_serie(serie = serie_ARIMA1, orden = c(2, 1, 2), 
+                            metodo = "ML")
+
+```
+
+
+
+```{r}
+
+ARIMA1_Acss <- ajustar_serie(serie = serie_ARIMA1, orden = c(2, 1, 2), 
+                            metodo = "CSS")
+
+```
+
+
+```{r}
+
+ARIMA1_Acssml <- ajustar_serie(serie = serie_ARIMA1, orden = c(2, 1, 2), 
+                            metodo = "CSS-ML")
+
+```
+
+
+# Serie ARIMA(1,1,1) 
+
+## exploracion
+
+```{r}
+gArima2 <- autoplot(ARIMA2) +
+  geom_line(color = "steelblue", linewidth = 0.75) +
+  labs(title = "Serie Original: ARIMA(1,1,1)", x = "Tiempo", y = "Unidades") +
+  theme_minimal()
+
+gArima2
+
+```
+
+
+
+```{r}
+
+ggAcf(ARIMA2, lag.max = 24) +
+  labs(title = "ACF Serie original ARIMA(1,1,1)") +
+  theme_minimal()
+
+
+```
+
+
+```{r}
+
+ggPacf(ARIMA2, lag.max = 24) + 
+  labs(title = "PACF Serie original ARIMA(1,1,1)") +
+  theme_minimal()
+
+```
+
+
+## ajuste
+
+```{r}
+
+ARIMA2_Aml <- ajustar_serie(serie = ARIMA2, orden = c(1, 1, 1), 
+                            metodo = "ML")
+
+```
+
+
+```{r}
+
+ARIMA2_Acss <- ajustar_serie(serie = ARIMA2, orden = c(1, 1, 1), 
+                            metodo = "CSS")
+
+```
+
+
+```{r}
+
+ARIMA2_Acssml <- ajustar_serie(serie = ARIMA2, orden = c(1, 1, 1), 
+                            metodo = "CSS-ML")
+
+```
+
+
+
+# Serie ARMA(1,0,1)
+
+## exploracion
+
+```{r}
+
+gArma <- autoplot(st_ARMA) +
+  geom_line(color = "steelblue", linewidth = 0.75) +
+  labs(title = "Serie Original: ARMA(1,0,1)", x = "Tiempo", y = "Unidades") +
+  theme_minimal()
+
+gArma
+
+
+```
+
+
+
+```{r}
+
+ggAcf(st_ARMA, lag.max = 24) +
+  labs(title = "ACF Serie original ARMA(1,0,1)") +
+  theme_minimal()
+
+
+```
+
+
+```{r}
+
+ggPacf(st_ARMA, lag.max = 24) + 
+  labs(title = "PACF Serie original ARIMA(1,0,1)") +
+  theme_minimal()
+
+```
+
+
+## ajuste
+
+```{r}
+
+ARMA_Aml <- ajustar_serie(serie = st_ARMA, orden = c(1, 0, 1), 
+                            metodo = "ML")
+
+```
+
+
+```{r}
+
+ARMA_Acss <- ajustar_serie(serie = st_ARMA, orden = c(1, 0, 1), 
+                            metodo = "CSS")
+
+```
+
+
+```{r}
+
+ARMA_Acssml <- ajustar_serie(serie = st_ARMA, orden = c(1, 0, 1), 
+                            metodo = "CSS-ML")
+
+```
+
+
+
+# Serie ARI(2,1,0)
+
+## exploracion
+
+```{r}
+
+gAri <- autoplot(st_ARI) +
+  geom_line(color = "steelblue", linewidth = 0.75) +
+  labs(title = "Serie Original: ARI(2,1,0)", x = "Tiempo", y = "Unidades") +
+  theme_minimal()
+
+gAri
+
+```
+
+
+
+```{r}
+
+ggAcf(st_ARI, lag.max = 24) +
+  labs(title = "ACF Serie original ARI(2,1,0)") +
+  theme_minimal()
+
+
+```
+
+
+```{r}
+
+ggPacf(serie_ARIMA1, lag.max = 24) + 
+  labs(title = "PACF Serie original ARI(2,1,0)") +
+  theme_minimal()
+
+```
+
+
+## ajuste
+
+```{r}
+
+ARI_Aml <- ajustar_serie(serie = st_ARI, orden = c(2, 1, 0), 
+                            metodo = "ML")
+
+```
+
+
+```{r}
+
+ARI1_Acss <- ajustar_serie(serie = st_ARI, orden = c(2, 1, 0), 
+                            metodo = "CSS")
+
+```
+
+
+```{r}
+
+ARI_Acssml <- ajustar_serie(serie = st_ARI, orden = c(2, 1, 0), 
+                            metodo = "CSS-ML")
+
+```
+
