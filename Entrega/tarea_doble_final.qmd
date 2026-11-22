@@ -1,5 +1,5 @@
 ---
-title: "Trabajo 1"
+title: "Tarea Doble"
 subtitle: "Series de Tiempo — Pregrado en Estadística, UNAL Medellín"
 author: "Sebastian Valencia Botero "
 date: today
@@ -22,12 +22,15 @@ format:
 editor: visual
 ---
 
-```{r}
+```{r, include=FALSE}
 
 library(forecast)
+library(tseries)
+library(TSA)
+library(lmtest)
 library(ggplot2)
 library(patchwork)
-library(tseries)
+
 
 ```
 
@@ -93,36 +96,136 @@ ggPacf(serie_ARIMA1, lag.max = 24) +
 
 ```
 
+La serie original presenta valores que oscilan entre $10$ y $-40$ unidades, evidenciando un comportamiento no estacionario en media propio de un proceso integrado.
+
+La ACF tiene un decrecimiento lento y la PACF se corta en el rezago 2.
 
 
+## Transformacion
+
+```{r}
+
+ARIMA1_trans <- evaluar_boxcox(serie_ARIMA1)
+
+```
+No se tranforma debido a que $\lambda \approx 1$ por lo que se concluye que no es necesario aplicar una transformación de Box-Cox para estabilizar la varianza.
+
+
+## Entrenamiento y verificacion de raices
+
+```{r}
+
+particion_ARIMA1 <- separar_datos(serie_ARIMA1, h = 12, nombre_entrenamiento = "ENTRENO_ARIMA1")
+
+prueba_ARIMA1 <- particion_ARIMA1$prueba
+
+Wt_ARIMA1 <- evaluar_diferenciacion(ENTRENO_ARIMA1)
+
+
+
+```
+
+
+La prueba Dickey-Fuller Aumentada arroja un valor $p = 0.99$, por lo que no se rechaza la hipótesis nula de raíz unitaria; se confirma que la serie no es estacionaria y se aplica una primera diferencia regular
+
+
+```{r}
+
+autoplot(Wt_ARIMA1) +
+  geom_line(color = "steelblue", linewidth = 0.75) +
+  labs(title = "Serie diferenciada d=1 : ARIMA(2,1,2)", x = "Tiempo", y = "Unidades") +
+  theme_minimal()
+
+
+```
+
+
+
+```{r}
+
+ggAcf(Wt_ARIMA1, lag.max = 24) +
+  labs(title = "ACF Serie de entrenamiento ARIMA(2,1,2)") +
+  theme_minimal()
+
+
+```
+
+
+```{r}
+
+ggPacf(Wt_ARIMA1, lag.max = 24) + 
+  labs(title = "PACF Serie de entrenamiento ARIMA(2,1,2)") +
+  theme_minimal()
+
+```
+
+
+```{r}
+
+identificar_y_constante(Wt_ARIMA1)
+
+```
+
+En la prueba de deriva/constante, la media de la serie diferenciada de es $-0.0883$ con un estadístico $t = -1.031996$ ($\vert{}t\vert{} \le 2$), por lo que la constante no es estadísticamente significativa y no debe incluirse en el modelo.
+
+
+La EACF muestra una estructura de ceros desde filas bajas (como AR=1, MA=0), sugiriendo que podrían existir especificaciones más parsimoniosas además del orden teórico $(2,1,2)$
 
 ## ajuste
 
 
 ```{r}
 
-ARIMA1_Aml <- ajustar_serie(serie = serie_ARIMA1, orden = c(2, 1, 2), 
+ARIMA1_Aml <- ajustar_serie(serie = ENTRENO_ARIMA1, orden = c(2, 1, 2), 
                             metodo = "ML")
 
 ```
 
 
+Al ajustar por el método ML (maxima verosimilitud) converge a los siguientes reultados resultados  ($\hat{\sigma}^2 = 0.9426$, $\text{log-verosimilitud} = -233.6$, $\text{AIC} = 475.2$)
 
-```{r}
 
-ARIMA1_Acss <- ajustar_serie(serie = serie_ARIMA1, orden = c(2, 1, 2), 
+```{r, include=FALSE}
+
+ARIMA1_Acss <- ajustar_serie(serie = ENTRENO_ARIMA1, orden = c(2, 1, 2), 
                             metodo = "CSS")
 
 ```
 
 
-```{r}
+```{r, include=FALSE}
 
-ARIMA1_Acssml <- ajustar_serie(serie = serie_ARIMA1, orden = c(2, 1, 2), 
+ARIMA1_Acssml <- ajustar_serie(serie = ENTRENO_ARIMA1, orden = c(2, 1, 2), 
                             metodo = "CSS-ML")
 
 ```
 
+
+## Validacion
+
+```{r}
+
+validar_modelo(ARIMA1_Aml)
+
+```
+
+```{r}
+
+checkresiduals(ARIMA1_Aml)
+
+```
+
+```{r}
+
+qqnorm(ARIMA1_Aml$residuals, main = "Q-Q Plot de los residuos", pch = 16, col = "darkslategray")
+qqline(ARIMA1_Aml$residuals, col = "firebrick", lwd = 2)
+
+shapiro.test(ARIMA1_Aml$residuals)
+jarque.bera.test(ARIMA1_Aml$residuals)
+
+```
+
+Significancia de parámetros: Solo ar2 ($p = 5.089 \times 10^{-5}$) y ma1 ($p = 0.03712$) son estadísticamente significativos al 5%. Los parámetros ar1 ($p = 0.75215$) y ma2 ($p = 0.13393$) no son significativos, lo que indica sobreparametrización en el modelo ajustado.
 
 # Serie ARIMA(1,1,1) 
 
@@ -158,33 +261,141 @@ ggPacf(ARIMA2, lag.max = 24) +
 
 ```
 
+La esta serie (simulada con $n=250$, $\phi=0.12$ y $\theta=0.5$) presenta valores que oscilan aproximadamente entre -10 y 5 unidades a lo largo del tiempo, evidenciando cambios de nivel y un comportamiento no estacionario en media propio de un proceso integrado.
+
+
+La función de autocorrelación (ACF) muestra un decrecimiento muy lento y persistente, característico de series con raíz unitaria, mientras que la función de autocorrelación parcial (PACF) exhibe un pico cercano a 1 en el primer rezago y luego se corta abruptamente.
+
+## Transformacion
+
+```{r}
+
+Arima2_box <- evaluar_boxcox(ARIMA2)
+
+ARima2_tran <- Arima2_box$serie_transformada
+
+```
+
+Al evaluar la transformación de Box-Cox mediante el método de Guerrero (con la advertencia habitual por la presencia de valores negativos en la serie), se obtiene un parámetro óptimo estimado de $\lambda = 0.8638$. Con base en este resultado, se aplica la transformación
+
+
+## entreamiento y verificacion de raizes
+
+```{r}
+
+particion_ARIMA2 <- separar_datos(ARima2_tran, h = 12, nombre_entrenamiento = "ENTRENO_ARIMA2")
+
+prueba_ARIMA2 <- particion_ARIMA2$prueba
+
+Wt_ARIMA2 <- evaluar_diferenciacion(ENTRENO_ARIMA2)
+
+
+```
+
+La prueba Dickey-Fuller sobre la serie de entrenamiento arroja un valor $p = 0.9039$, por lo que no se rechaza la hipótesis nula de raíz unitaria. Se confirma que la serie no es estacionaria y se aplica una primera diferencia regular
+
+
+```{r}
+
+autoplot(Wt_ARIMA2) +
+  geom_line(color = "steelblue", linewidth = 0.75) +
+  labs(title = "Serie diferenciada d=1 : ARIMA(1,1,1)", x = "Tiempo", y = "Unidades") +
+  theme_minimal()
+
+```
+
+
+```{r}
+
+ggAcf(Wt_ARIMA2, lag.max = 24) +
+  labs(title = "ACF Serie de entrenamiento ARIMA(1,1,1)") +
+  theme_minimal()
+
+
+```
+
+
+```{r}
+
+ggPacf(Wt_ARIMA2, lag.max = 24) + 
+  labs(title = "PACF Serie de entrenamiento ARIMA(1,1,1)") +
+  theme_minimal()
+
+```
+
+
+
+```{r}
+
+identificar_y_constante(Wt_ARIMA2)
+
+
+```
+Tras la diferenciación, la serie oscila de manera estable alrededor de cero (entre -2 y 2 unidades aproximadamente), eliminando la tendencia estocástica y el decrecimiento lento en la ACF. En la prueba de constante/deriva, la media de la serie diferenciada es $-0.0143$ con un estadístico $t = -0.2329$ ($\vert{}t\vert{} \le 2$), por lo que la constante no es estadísticamente significativa y no debe incluirse en el modelo. 
+
+
 
 ## ajuste
 
 ```{r}
 
-ARIMA2_Aml <- ajustar_serie(serie = ARIMA2, orden = c(1, 1, 1), 
+ARIMA2_Aml <- ajustar_serie(serie = ENTRENO_ARIMA2, orden = c(1, 1, 1), 
                             metodo = "ML")
 
 ```
 
+Al ajustar el modelo mediante máxima verosimilitud (ML) con orden $(1,1,1)$, el algoritmo converge a los siguientes coeficientes estimados: $\hat{\phi}_1 = 0.28$ $e.e. = 0.1817$ y $\hat{\theta}_1 = -0.6008$ $e.e. = 0.1542$. Las medidas de ajuste obtenidas son $\hat{\sigma}^2 = 0.7982$, log-verosimilitud $ = -310.97$ y $AIC = 625.94$.
 
-```{r}
 
-ARIMA2_Acss <- ajustar_serie(serie = ARIMA2, orden = c(1, 1, 1), 
+```{r, include=FALSE}
+
+ARIMA2_Acss <- ajustar_serie(serie = ARima2_tran, orden = c(1, 1, 1), 
                             metodo = "CSS")
 
 ```
 
 
-```{r}
+```{r, include=FALSE}
 
-ARIMA2_Acssml <- ajustar_serie(serie = ARIMA2, orden = c(1, 1, 1), 
+ARIMA2_Acssml <- ajustar_serie(serie = ARima2_tran, orden = c(1, 1, 1), 
                             metodo = "CSS-ML")
 
 ```
 
 
+## validacion 
+
+
+```{r}
+
+validar_modelo(ARIMA2_Aml)
+
+```
+
+```{r}
+
+checkresiduals(ARIMA2_Aml)
+
+```
+
+```{r}
+
+qqnorm(ARIMA2_Aml$residuals, main = "Q-Q Plot de los residuos", pch = 16, col = "darkslategray")
+qqline(ARIMA2_Aml$residuals, col = "firebrick", lwd = 2)
+
+shapiro.test(ARIMA2_Aml$residuals)
+jarque.bera.test(ARIMA2_Aml$residuals)
+
+```
+
+Únicamente el parámetro ar2 ($z = 3.6584$, $p = 0.0002538$) resulta estadísticamente significativo al 1%. Los coeficientes ar1 ($z = -0.1617$, $p = 0.8716$), ma1 ($z = 1.4963$, $p = 0.1346$) y ma2 ($z = -1.1390$, $p = 0.2547$) no son significativos al 5%, lo que evidencia sobreparametrización en el modelo ajustado
+
+
+La prueba de Ljung-Box en validar_modelo arroja $X^2 = 31.688$ ($df = 20$, $p = 0.04674$), rechazando la hipótesis de ruido blanco al 5%. 
+
+Todas las raíces inversas AR y MA se ubican dentro del círculo unitario, cumpliendo las condiciones de estacionariedad e invertibilidad
+
+Las pruebas formales no rechazan el supuesto de normalidad en los residuos, tanto en Shapiro-Wilk ($W = 0.98553$, $p = 0.07743$) como en Jarque-Bera ($X^2 = 4.1664$, $df = 2$, $p = 0.1245$), lo cual concuerda visualmente con el alineamiento de los puntos en el gráfico Q-Q
 
 # Serie ARMA(1,0,1)
 
@@ -198,7 +409,6 @@ gArma <- autoplot(st_ARMA) +
   theme_minimal()
 
 gArma
-
 
 ```
 
@@ -222,31 +432,141 @@ ggPacf(st_ARMA, lag.max = 24) +
 
 ```
 
+Comportamiento de la serie: La serie original oscila aproximadamente entre $-6$ y $6$ unidades alrededor de cero, sin una tendencia determinística marcada, lo cual es coherente con un proceso estacionario en media
+
+ La ACF presenta un decrecimiento progresivo (típico de la persistencia inducida por un parámetro autorregresivo alto como $\phi = 0.81$), mientras que la PACF muestra un pico pronunciado en el rezago 1 y valores que se atenúan rápidamente, sugiriendo una estructura ARMA de orden bajo
+
+
+## tranformacion
+
+```{r}
+
+ARMA_box <- evaluar_boxcox(st_ARMA)
+
+ARMA_trans <- ARMA_box$serie_transformada
+
+```
+El método de Guerrero estima un $\lambda$ óptimo de $0.844$ y se procede a aplicar la transformación a la serie
+
+
+## Entrenamiento y verificacion de raizes
+
+
+
+```{r}
+
+particion_ARMA <- separar_datos(ARMA_trans, h = 12, nombre_entrenamiento = "ENTRENO_ARMA")
+
+prueba_ARMA <- particion_ARMA$prueba
+
+Wt_ARMA <- evaluar_diferenciacion(ENTRENO_ARMA)
+
+
+```
+
+La prueba Dickey-Fuller Aumentada arroja un valor $p = 0.0945$. Al ser mayor a $0.05$, no se rechaza la hipótesis nula de raíz unitaria y el algoritmo aplica automáticamente una diferencia regular ($d = 1$). Aunque teóricamente la serie es estacionaria, la alta persistencia del proceso ($\phi = 0.81$) en una muestra finita llevó a que la prueba ADF sugiriera diferenciar
+
+
+```{r}
+
+autoplot(Wt_ARMA) +
+  geom_line(color = "steelblue", linewidth = 0.75) +
+  labs(title = "Serie diferenciada d=1 : ARMA(1,0,1)", x = "Tiempo", y = "Unidades") +
+  theme_minimal()
+
+```
+
+
+
+```{r}
+
+ggAcf(Wt_ARMA, lag.max = 24) +
+  labs(title = "ACF Serie de entrenamiento ARMA(1,0,1)") +
+  theme_minimal()
+
+
+```
+
+
+```{r}
+
+ggPacf(Wt_ARMA, lag.max = 24) + 
+  labs(title = "PACF Serie de entrenamiento ARIMA(1,0,1)") +
+  theme_minimal()
+
+```
+
+
+```{r}
+
+identificar_y_constante(Wt_ARMA)
+
+
+```
+Sobre la serie diferenciada, la prueba de constante/deriva entrega una media de $0.0093$ con un estadístico $t = 0.1104$ ($\vert{}t\vert{} \le 2$), por lo que se concluye que la constante no es estadísticamente significativa y no debería incluirse en el modelo. La EACF refleja una estructura alterada por la diferenciación aplicada.  
+
 
 ## ajuste
 
 ```{r}
 
-ARMA_Aml <- ajustar_serie(serie = st_ARMA, orden = c(1, 0, 1), 
+ARMA_Aml <- ajustar_serie(serie = ENTRENO_ARMA, orden = c(1, 0, 1), 
                             metodo = "ML")
 
 ```
 
+Se ajustó un modelo ARIMA(1,0,1) mediante máxima verosimilitud (ML) directamente sobre la serie de entrenamiento ENTRENO_ARMA. El ajuste converge con los coeficientes estimados $\hat{\phi}_1 = 0.8186$ ($\text{e.e.} = 0.0433$), $\hat{\theta}_1 = 0.6366$ ($\text{e.e.} = 0.0597$) e intercepto de $-1.4555$ ($\text{e.e.} = 0.6078$), logrando una varianza residual estimada $\hat{\sigma}^2 = 0.8961$, una log-verosimilitud de $-257.68$ y un $AIC = 521.36$.   
 
-```{r}
 
-ARMA_Acss <- ajustar_serie(serie = st_ARMA, orden = c(1, 0, 1), 
+```{r, include=FALSE}
+
+ARMA_Acss <- ajustar_serie(serie = Wt_ARMA, orden = c(1, 0, 1), 
                             metodo = "CSS")
 
 ```
 
 
-```{r}
+```{r, include=FALSE}
 
-ARMA_Acssml <- ajustar_serie(serie = st_ARMA, orden = c(1, 0, 1), 
+ARMA_Acssml <- ajustar_serie(serie = Wt_ARMA, orden = c(1, 0, 1), 
                             metodo = "CSS-ML")
 
 ```
+
+
+## validacion de modelo
+
+
+
+```{r}
+
+validar_modelo(ARMA_Aml)
+
+```
+
+```{r}
+
+checkresiduals(ARMA_Aml)
+
+```
+
+```{r}
+
+qqnorm(ARMA_Aml$residuals, main = "Q-Q Plot de los residuos", pch = 16, col = "darkslategray")
+qqline(ARMA_Aml$residuals, col = "firebrick", lwd = 2)
+
+shapiro.test(ARMA_Aml$residuals)
+jarque.bera.test(ARMA_Aml$residuals)
+
+```
+
+El componente de media móvil ma1 ($z = -3.8960$, $p = 9.781 \times 10^{-5}$) resulta altamente significativo al 1%, mientras que el parámetro autorregresivo ar1 ($z = 1.5411$, $p = 0.1233$) no es estadísticamente significativo al 5%. 
+
+ La prueba de Ljung-Box en validar_modelo arroja $X^2 = 39.257$ ($df = 22$, $p = 0.01319$). Con $p \le 0.05$, por lo que se rechaza la hipótesis de independencia y se concluye que los residuos no son ruido blanco.
+
+Estacionariedad e invertibilidad: El gráfico de raíces inversas muestra que todas las raíces AR y MA se ubican dentro del círculo unitario, cumpliendo ambas condiciones.
+
+Las pruebas formales no rechazan el supuesto de normalidad en los residuos, tanto en Shapiro-Wilk ($W = 0.99659$, $p = 0.8868$) como en Jarque-Bera ($X^2 = 0.080758$, $df = 2$, $p = 0.9604$), lo cual se respalda visualmente en el gráfico Q-Q donde los cuantiles muestrales siguen de cerca la recta teórica 
 
 
 
@@ -279,24 +599,99 @@ ggAcf(st_ARI, lag.max = 24) +
 
 ```{r}
 
-ggPacf(serie_ARIMA1, lag.max = 24) + 
+ggPacf(st_ARI, lag.max = 24) + 
   labs(title = "PACF Serie original ARI(2,1,0)") +
   theme_minimal()
 
 ```
 
+La serie original ARI(2,1,0) presenta valores que oscilan aproximadamente entre 10 y -30 unidades, evidenciando una tendencia marcada y un comportamiento no estacionario en media propio de un proceso integrado
 
-## ajuste
+La función de autocorrelación (ACF) muestra un decrecimiento lento, característico de series con raíz unitaria, mientras que la PACF presenta un pico dominante en el primer rezago cercano a 1
+
+
+## Tranformacion
+
 
 ```{r}
 
-ARI_Aml <- ajustar_serie(serie = st_ARI, orden = c(2, 1, 0), 
-                            metodo = "ML")
+ARI_box <- evaluar_boxcox(st_ARI)
+
+ARI_trans <- ARI_box$serie_transformada
+
+```
+
+Al evaluar la transformación de Box-Cox se obtiene un parámetro óptimo estimado de $\lambda = 0.7995$, aplicándose dicha transformación 
+
+
+## entrenamiento y verificacion de raizes
+
+
+
+```{r}
+
+particion_ARI <- separar_datos(ARI_trans, h = 12, nombre_entrenamiento = "ENTRENO_ARI")
+
+prueba_ARI <- particion_ARI$prueba
+
+Wt_ARI <- evaluar_diferenciacion(ENTRENO_ARI)
+
+
+```
+
+ La prueba Dickey-Fuller Aumentada arroja un valor $p = 0.726491$, por lo que no se rechaza la hipótesis nula de raíz unitaria; se confirma que la serie no es estacionaria y se aplica una primera diferencia regular
+
+
+```{r}
+
+autoplot(Wt_ARI) +
+  geom_line(color = "steelblue", linewidth = 0.75) +
+  labs(title = "Serie diferenciada d=1 : ARI(2,1)", x = "Tiempo", y = "Unidades") +
+  theme_minimal()
+
+```
+
+
+
+```{r}
+
+ggAcf(Wt_ARI, lag.max = 24) +
+  labs(title = "ACF Serie de entrenamiento ARI(2,1,0)") +
+  theme_minimal()
+
 
 ```
 
 
 ```{r}
+
+ggPacf(Wt_ARI, lag.max = 24) + 
+  labs(title = "PACF Serie de entrenamiento ARI(2,1,0)") +
+  theme_minimal()
+
+```
+
+
+```{r}
+
+identificar_y_constante(Wt_ARI)
+
+```
+Tras diferenciar, la serie Wt_ARI se estabiliza en media oscilando alrededor de cero (entre -3 y 2 unidades), y tanto la ACF como la PACF muestran la desaparición del decrecimiento lento.
+
+La media de la serie diferenciada es $-0.042$ con un estadístico $t = -0.6624407$. Dado que $\vert{}t\vert{} \le 2$, la constante no es estadísticamente significativa y no debe incluirse en el modelo.
+
+## ajuste
+
+```{r}
+
+ARI_Aml <- ajustar_serie(serie = ENTRENO_ARI, orden = c(2, 1, 0), 
+                            metodo = "ML")
+
+```
+El ajuste por máxima verosimilitud (ML) de orden (2,1,0) sobre ENTRENO_ARI converge con coeficientes $\hat{\phi}_1 = 0.4948$ ($e.e. = 0.0722$) y $\hat{\phi}_2 = -0.1505$ ($e.e. = 0.0722$), una varianza residual estimada $\hat{\sigma}^2 = 0.5991$, log-verosimilitud de $-218.73$ y un $AIC = 441.46$.   
+
+```{r, include=FALSE}
 
 ARI1_Acss <- ajustar_serie(serie = st_ARI, orden = c(2, 1, 0), 
                             metodo = "CSS")
@@ -304,10 +699,43 @@ ARI1_Acss <- ajustar_serie(serie = st_ARI, orden = c(2, 1, 0),
 ```
 
 
-```{r}
+```{r, include=FALSE}
 
 ARI_Acssml <- ajustar_serie(serie = st_ARI, orden = c(2, 1, 0), 
                             metodo = "CSS-ML")
 
 ```
+
+## validacion
+
+
+
+```{r}
+
+validar_modelo(ARI_Aml)
+
+```
+
+```{r}
+
+checkresiduals(ARI_Aml)
+
+```
+
+```{r}
+
+qqnorm(ARI_Aml$residuals, main = "Q-Q Plot de los residuos", pch = 16, col = "darkslategray")
+qqline(ARI_Aml$residuals, col = "firebrick", lwd = 2)
+
+shapiro.test(ARI_Aml$residuals)
+jarque.bera.test(ARI_Aml$residuals)
+
+```
+Ambos coeficientes autorregresivos son estadísticamente significativos al 5%: ar1 ($z = 6.8579$, $p = 6.986 \times 10^{-12}$) al 0.1% y ar2 ($z = -2.0839$, $p = 0.03717$) al 5%
+
+Las raíces inversas del polinomio AR se encuentran dentro del círculo unitario, cumpliendo la condición de estacionariedad del modelo ajustado.
+
+La prueba de Ljung-Box no rechaza la hipótesis de ruido blanco tanto en la validación general ($X^2 = 26.233$, $df = 22$, $p = 0.2418$). Con un $p > 0.05$, se confirma que los residuos son ruido blanco. 
+
+Existe discrepancia entre las pruebas formales: Shapiro-Wilk no rechaza el supuesto de normalidad ($W = 0.98946$, $p = 0.1772$), mientras que Jarque-Bera sí lo rechaza al 5% ($X^2 = 8.0775$, $df = 2$, $p = 0.01762$), lo cual sugiere desviaciones leves en asimetría o curtosis apreciables en las colas del gráfico Q-Q
 

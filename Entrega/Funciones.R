@@ -24,7 +24,6 @@ separar_datos <- function(serie, h, nombre_entrenamiento = "entrenamiento") {
   # Asignar el conjunto de entrenamiento al entorno global con el nombre indicado
   assign(nombre_entrenamiento, entrenamiento, envir = .GlobalEnv)
   
-  cat("Partición completada con éxito.\n")
   cat("- Datos totales:", n_total, "\n")
   cat("- Datos en '", nombre_entrenamiento, "' (entrenamiento): ", length(entrenamiento), "\n", sep="")
   cat("- Datos separados para prueba (h):", h, "\n")
@@ -108,6 +107,7 @@ simular_serie <- function(tipo, orden, n, phi = NULL, theta = NULL) {
 # 
 # 
 
+
 #---- Ajuste de series ----
 
 ajustar_serie <- function(serie, orden, metodo = "ML") {
@@ -171,6 +171,7 @@ ajustar_serie <- function(serie, orden, metodo = "ML") {
 
 
 
+
 # ----  Transformación de Escala ----
 evaluar_boxcox <- function(serie) {
   
@@ -195,14 +196,14 @@ evaluar_diferenciacion <- function(serie) {
   
   adf_res <- adf.test(serie)
   cat("--- Prueba Dickey-Fuller Aumentada (ADF) ---\n")
-  cat("Valor p:", round(adf_res$p.value, 4), "\n")
+  cat("Valor p:", adf_res$p.value, "\n")
   
   if (adf_res$p.value > 0.05) {
-    cat("Conclusión: La serie NO es estacionaria (presencia de raíz unitaria).\n")
-    cat("Se aplicará una (1) diferencia regular.\n")
+    cat(" La serie NO es estacionaria hay raíz unitaria.\n")
+    cat("Se aplicará una 1 diferencia regular.\n")
     serie_diff <- diff(serie)
   } else {
-    cat("Conclusión: La serie ES estacionaria. No se requiere diferenciación.\n")
+    cat(" La serie ES estacionaria. No se requiere diferenciación.\n")
     serie_diff <- serie
   }
   
@@ -213,7 +214,6 @@ evaluar_diferenciacion <- function(serie) {
 
 # ----  Identificación y Constante ----
 identificar_y_constante <- function(serie_diferenciada) {
-  library(TSA)
   
   cat("--- Función de Autocorrelación Extendida (EACF) ---\n")
   eacf(serie_diferenciada)
@@ -226,12 +226,12 @@ identificar_y_constante <- function(serie_diferenciada) {
   t_constante <- media_w / error_estandar_w
   
   cat("Media de Wt (serie_dif):", round(media_w, 4), "\n")
-  cat("Estadístico t:", round(t_constante, 4), "\n")
+  cat("Estadístico t:", t_constante, "\n")
   
   if (abs(t_constante) > 2) {
-    cat("Conclusión: |t| > 2. La constante ES SIGNIFICATIVA y debería incluirse en el modelo.\n")
+    cat(" |t| > 2. La constante ES SIGNIFICATIVA \n")
   } else {
-    cat("Conclusión: |t| <= 2. La constante NO ES significativa y puede omitirse (include.mean = FALSE).\n")
+    cat(" |t| <= 2. La constante NO ES significativa.\n") # (include.mean = FALSE)
   }
 }
 
@@ -246,23 +246,23 @@ validar_modelo <- function(modelo) {
   print(coeftest(modelo))
   
   cat("\n--- 2. PRUEBA DE LJUNG-BOX (Autocorrelación) ---\n")
-  # Calculamos grados de libertad: p + q (restamos la constante si la hay)
+ 
   coeficientes_arma <- sum(!grepl("intercept", names(modelo$coef)))
-  # Aplicamos la prueba con un rezago K razonable (ej. 12 o 24)
+  
   lb_test <- Box.test(residuos, lag = 24, type = "Ljung-Box", fitdf = coeficientes_arma)
   print(lb_test)
   if (lb_test$p.value > 0.05) {
-    cat("Conclusión: Los residuos son RUIDO BLANCO (p > 0.05).\n")
+    cat(" Los residuos son RUIDO BLANCO (p > 0.05).\n")
   } else {
-    cat("ADVERTENCIA: Los residuos presentan autocorrelación (p <= 0.05).\n")
+    cat(" Los residuos No son Ruido Blanco (p <= 0.05).\n")
   }
   
   cat("\n--- 3. PRUEBA DE NORMALIDAD (Jarque-Bera) ---\n")
   jb_test <- jarque.bera.test(residuos)
   print(jb_test)
   
-  cat("\n--- 4. ESTACIONARIEDAD E INVERTIBILIDAD ---\n")
-  # Este gráfico mostrará si las raíces inversas están dentro del círculo unitario
+  
+  
   print(autoplot(modelo) + 
           labs(title = "Raíces Inversas del Modelo") + 
           theme_minimal())
